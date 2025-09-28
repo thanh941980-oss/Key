@@ -114,42 +114,23 @@ function copyKeyToClipboard(key) {
 }
 
 // Hàm huỷ bản quyền
-// Cách đơn giản hơn - update trực tiếp
 async function revokeLicense(key) {
-  if (confirm("Huỷ bản quyền cho mã: " + key + "?")) {
+  if (confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nNgười dùng sẽ mất quyền sử dụng khi họ đăng nhập lại.")) {
     try {
-      // 1. Lấy thông tin user từ key
-      const keySnapshot = await database.ref('licenseKeys/' + key).once('value');
-      const keyData = keySnapshot.val();
-      
-      if (keyData && keyData.usedBy) {
-        const userId = keyData.usedBy;
-        
-        // 2. Đặt licensed = false cho user - cách trực tiếp
-        await database.ref('users/' + userId + '/license/licensed').set(false);
-        await database.ref('users/' + userId + '/license/key').set(null);
-        await database.ref('users/' + userId + '/license/activatedAt').set(null);
-      }
-      
-      // 3. Đặt used = false cho key
-      await database.ref('licenseKeys/' + key).update({
-        used: false,
-        usedAt: null,
-        usedBy: null,
-        usedByEmail: null
-      });
-      
-      alert("✅ Đã huỷ bản quyền thành công!");
-      loadKeys();
-      
-    } catch (error) {
-      console.error("Lỗi:", error);
-      alert("❌ Lỗi: " + error.message);
-    }
-  }
-}
+      // 1. Lấy thông tin của key để xác định người dùng
+      const licenseRef = database.ref('licenseKeys/' + key);
+      const snapshot = await licenseRef.once('value');
+      const licenseData = snapshot.val();
 
-      // 4. Cập nhật trạng thái used: false cho key
+      if (licenseData && licenseData.usedBy) {
+        // 2. Cập nhật trạng thái licensed: false cho người dùng tương ứng
+        const userRef = database.ref('users/' + licenseData.usedBy + '/license');
+        await userRef.update({
+          licensed: false
+        });
+      }
+
+      // 3. Cập nhật trạng thái used: false cho key
       await licenseRef.update({
         used: false,
         usedAt: null,
@@ -165,7 +146,6 @@ async function revokeLicense(key) {
     }
   }
 }
-
 // Hiển thị key
 function loadKeys(){
   database.ref('licenseKeys').on('value', snap => {
