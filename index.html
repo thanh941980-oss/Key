@@ -115,37 +115,36 @@ function copyKeyToClipboard(key) {
 
 // Hàm huỷ bản quyền
 async function revokeLicense(key) {
-  if (confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nNgười dùng sẽ mất quyền sử dụng khi họ đăng nhập lại.")) {
+  if(confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nMã này sẽ trở về trạng thái chưa sử dụng và người dùng sẽ mất quyền sử dụng.")) {
     try {
-      // 1. Lấy thông tin của key để xác định người dùng
-      const licenseRef = database.ref('licenseKeys/' + key);
-      const snapshot = await licenseRef.once('value');
-      const licenseData = snapshot.val();
-
-      if (licenseData && licenseData.usedBy) {
-        // 2. Cập nhật trạng thái licensed: false cho người dùng tương ứng
-        const userRef = database.ref('users/' + licenseData.usedBy + '/license');
-        await userRef.update({
-          licensed: false
-        });
-      }
-
-      // 3. Cập nhật trạng thái used: false cho key
-      await licenseRef.update({
-        used: false,
-        usedAt: null,
-        usedBy: null,
-        usedByEmail: null
+      // 1. Cập nhật trong licenseKeys
+      await database.ref('licenseKeys/'+key).update({
+        used: false
+        // Giữ nguyên các trường usedAt, usedBy, usedByEmail để theo dõi lịch sử
       });
 
-      alert("Đã huỷ bản quyền thành công cho mã: " + key);
+      // 2. Tìm user đang sử dụng key này và cập nhật licensed: false
+      const licenseKeyData = await database.ref('licenseKeys/'+key).once('value');
+      const keyData = licenseKeyData.val();
+      
+      if (keyData && keyData.usedBy) {
+        const userId = keyData.usedBy;
+        await database.ref('users/' + userId + '/license').update({
+          licensed: false
+          // Giữ nguyên key và activatedAt để theo dõi lịch sử
+        });
+        console.log("Đã cập nhật licensed: false cho user:", userId);
+      }
+
+      alert("Đã huỷ bản quyền cho mã: " + key);
       loadKeys();
     } catch (error) {
       console.error("Lỗi khi huỷ bản quyền:", error);
-      alert("Đã xảy ra lỗi: " + error.message);
+      alert("Có lỗi xảy ra khi huỷ bản quyền");
     }
   }
 }
+
 // Hiển thị key
 function loadKeys(){
   database.ref('licenseKeys').on('value', snap => {
