@@ -114,61 +114,37 @@ function copyKeyToClipboard(key) {
 }
 
 // Hàm huỷ bản quyền
-// Hàm huỷ bản quyền - Phiên bản sửa lỗi
+// Cách đơn giản hơn - update trực tiếp
 async function revokeLicense(key) {
-  if (confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nNgười dùng sẽ mất quyền sử dụng khi họ đăng nhập lại.")) {
+  if (confirm("Huỷ bản quyền cho mã: " + key + "?")) {
     try {
-      console.log("Bắt đầu huỷ bản quyền cho mã:", key);
+      // 1. Lấy thông tin user từ key
+      const keySnapshot = await database.ref('licenseKeys/' + key).once('value');
+      const keyData = keySnapshot.val();
       
-      // 1. Lấy thông tin của key
-      const licenseRef = database.ref('licenseKeys/' + key);
-      const snapshot = await licenseRef.once('value');
-      const licenseData = snapshot.val();
-      
-      console.log("Thông tin key:", licenseData);
-
-      if (licenseData && licenseData.usedBy) {
-        const userId = licenseData.usedBy;
-        console.log("User ID cần huỷ:", userId);
+      if (keyData && keyData.usedBy) {
+        const userId = keyData.usedBy;
         
-        // 2. Cập nhật trạng thái licensed: false cho người dùng
-        const userLicenseRef = database.ref('users/' + userId + '/license');
-        await userLicenseRef.update({
-          licensed: false,
-          key: null,
-          activatedAt: null
-        });
-        console.log("Đã cập nhật licensed: false cho user");
-        
-        // 3. Cập nhật config/license nếu đây là user đang active
-        const configRef = database.ref('config/license');
-        const configSnapshot = await configRef.once('value');
-        const configData = configSnapshot.val();
-        
-        if (configData && configData.key === key) {
-          await configRef.update({
-            licensed: false,
-            key: null
-          });
-          console.log("Đã cập nhật config/license");
-        }
+        // 2. Đặt licensed = false cho user - cách trực tiếp
+        await database.ref('users/' + userId + '/license/licensed').set(false);
+        await database.ref('users/' + userId + '/license/key').set(null);
+        await database.ref('users/' + userId + '/license/activatedAt').set(null);
       }
-
-      // 4. Cập nhật trạng thái key
-      await licenseRef.update({
+      
+      // 3. Đặt used = false cho key
+      await database.ref('licenseKeys/' + key).update({
         used: false,
         usedAt: null,
         usedBy: null,
         usedByEmail: null
       });
-      console.log("Đã cập nhật key thành unused");
-
-      alert("✅ Đã huỷ bản quyền thành công cho mã: " + key);
+      
+      alert("✅ Đã huỷ bản quyền thành công!");
       loadKeys();
       
     } catch (error) {
-      console.error("Lỗi khi huỷ bản quyền:", error);
-      alert("❌ Đã xảy ra lỗi: " + error.message);
+      console.error("Lỗi:", error);
+      alert("❌ Lỗi: " + error.message);
     }
   }
 }
