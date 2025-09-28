@@ -31,12 +31,26 @@
     .copy-btn:hover {
       background: #4cae4c;
     }
+    .revoke-btn {
+      padding: 5px 10px;
+      margin-left: 5px;
+      background: #d9534f;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8em;
+    }
+    .revoke-btn:hover {
+      background: #c9302c;
+    }
   </style>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 </head>
 <body>
-<h1>Quản lý mã bản quyền</h1><div class="form-container">
+<h1>Quản lý mã bản quyền</h1>
+<div class="form-container">
   <h3>📝 Tạo mã bản quyền mới</h3>
   <div class="form-group">
     <label for="keyCount">Số lượng mã</label>
@@ -47,10 +61,12 @@
     <input type="number" id="keyLength" value="8" min="6" max="20">
   </div>
   <button id="generateBtn">Tạo mã</button>
-</div><div class="table-container">
+</div>
+<div class="table-container">
   <h3>📋 Danh sách mã bản quyền</h3>
   <div id="keysTable"></div>
-</div><script>
+</div>
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyB7qqxKGsD-enKgzeAvGQ8CwtTsFWy01OM",
   authDomain: "web-quan-ly.firebaseapp.com",
@@ -97,33 +113,61 @@ function copyKeyToClipboard(key) {
   });
 }
 
+// Hàm huỷ bản quyền
+function revokeLicense(key) {
+  if(confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?")) {
+    database.ref('licenseKeys/'+key).update({
+      used: false,
+      usedAt: null
+    }).then(() => {
+      alert("Đã huỷ bản quyền cho mã: " + key);
+      loadKeys();
+    }).catch(error => {
+      console.error("Lỗi khi huỷ bản quyền:", error);
+      alert("Có lỗi xảy ra khi huỷ bản quyền");
+    });
+  }
+}
+
 // Hiển thị key
 function loadKeys(){
   database.ref('licenseKeys').on('value', snap => {
     if(!snap.exists()){ document.getElementById('keysTable').innerHTML = '<p>Chưa có mã nào.</p>'; return; }
     const keys = snap.val();
-    let html = `<table><thead><tr><th>Mã</th><th>Trạng thái</th><th>Ngày tạo</th><th>Ngày cấp</th></tr></thead><tbody>`;
+    let html = `<table><thead><tr><th>Mã</th><th>Trạng thái</th><th>Ngày tạo</th><th>Ngày cấp</th><th>Thao tác</th></tr></thead><tbody>`;
     Object.entries(keys).forEach(([k,v])=>{
       html += `<tr class="${v.used?'key-used':'key-unused'}">
         <td><code>${k}</code> <button class="copy-btn" data-key="${k}">Sao chép</button></td>
         <td>${v.used?'✅ Đã cấp':'🔄 Chưa cấp'}</td>
         <td>${v.generatedAt?new Date(v.generatedAt).toLocaleDateString('vi-VN'):'---'}</td>
         <td>${v.usedAt?new Date(v.usedAt).toLocaleDateString('vi-VN'):'---'}</td>
+        <td>
+          ${v.used ? `<button class="revoke-btn" data-key="${k}">Huỷ bản quyền</button>` : '---'}
+        </td>
       </tr>`;
     });
     html += `</tbody></table>`;
     document.getElementById('keysTable').innerHTML = html;
 
-    // Thêm event listener cho các nút sao chép sau khi chúng được tạo
+    // Thêm event listener cho các nút sao chép
     document.querySelectorAll('.copy-btn').forEach(button => {
       button.addEventListener('click', (event) => {
         const key = event.target.getAttribute('data-key');
         copyKeyToClipboard(key);
       });
     });
+    
+    // Thêm event listener cho các nút huỷ bản quyền
+    document.querySelectorAll('.revoke-btn').forEach(button => {
+      button.addEventListener('click', (event) => {
+        const key = event.target.getAttribute('data-key');
+        revokeLicense(key);
+      });
+    });
   });
 }
 
 loadKeys();
-</script></body>
+</script>
+</body>
 </html>
