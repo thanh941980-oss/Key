@@ -114,18 +114,39 @@ function copyKeyToClipboard(key) {
 }
 
 // Hàm huỷ bản quyền
-function revokeLicense(key) {
-  if(confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?")) {
-    database.ref('licenseKeys/'+key).update({
-      used: false,
-      usedAt: null
-    }).then(() => {
-      alert("Đã huỷ bản quyền cho mã: " + key);
+async function revokeLicense(key) {
+  if(confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nMã này sẽ trở về trạng thái chưa sử dụng và người dùng sẽ mất quyền sử dụng.")) {
+    try {
+      // 1. Lấy thông tin key trước để có usedBy
+      const licenseKeySnapshot = await database.ref('licenseKeys/' + key).once('value');
+      const keyData = licenseKeySnapshot.val();
+      
+      if (!keyData) {
+        alert("Không tìm thấy mã bản quyền: " + key);
+        return;
+      }
+
+      const userId = keyData.usedBy;
+
+      // 2. Cập nhật trong licenseKeys
+      await database.ref('licenseKeys/' + key).update({
+        used: false
+      });
+
+      // 3. Nếu có userId, cập nhật trong users
+      if (userId) {
+        await database.ref('users/' + userId + '/license').update({
+          licensed: false
+        });
+        console.log("Đã cập nhật licensed: false cho user:", userId);
+      }
+
+      alert("Đã huỷ bản quyền cho mã: " + key + (userId ? " và vô hiệu hóa user: " + userId : ""));
       loadKeys();
-    }).catch(error => {
+    } catch (error) {
       console.error("Lỗi khi huỷ bản quyền:", error);
-      alert("Có lỗi xảy ra khi huỷ bản quyền");
-    });
+      alert("Có lỗi xảy ra khi huỷ bản quyền: " + error.message);
+    }
   }
 }
 
@@ -134,13 +155,15 @@ function loadKeys(){
   database.ref('licenseKeys').on('value', snap => {
     if(!snap.exists()){ document.getElementById('keysTable').innerHTML = '<p>Chưa có mã nào.</p>'; return; }
     const keys = snap.val();
-    let html = `<table><thead><tr><th>Mã</th><th>Trạng thái</th><th>Ngày tạo</th><th>Ngày cấp</th><th>Thao tác</th></tr></thead><tbody>`;
+    let html = `<table><thead><tr><th>Mã</th><th>Trạng thái</th><th>Ngày tạo</th><th>Ngày cấp</th><th>Người dùng</th><th>Email</th><th>Thao tác</th></tr></thead><tbody>`;
     Object.entries(keys).forEach(([k,v])=>{
       html += `<tr class="${v.used?'key-used':'key-unused'}">
         <td><code>${k}</code> <button class="copy-btn" data-key="${k}">Sao chép</button></td>
         <td>${v.used?'✅ Đã cấp':'🔄 Chưa cấp'}</td>
         <td>${v.generatedAt?new Date(v.generatedAt).toLocaleDateString('vi-VN'):'---'}</td>
         <td>${v.usedAt?new Date(v.usedAt).toLocaleDateString('vi-VN'):'---'}</td>
+        <td>${v.usedBy||'---'}</td>
+        <td>${v.usedByEmail||'---'}</td>
         <td>
           ${v.used ? `<button class="revoke-btn" data-key="${k}">Huỷ bản quyền</button>` : '---'}
         </td>
