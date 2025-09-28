@@ -115,33 +115,14 @@ function copyKeyToClipboard(key) {
 
 // Hàm huỷ bản quyền
 async function revokeLicense(key) {
-  if(confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nMã này sẽ trở về trạng thái chưa sử dụng và người dùng sẽ mất quyền sử dụng.")) {
+  if(confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nMã này sẽ trở về trạng thái chưa sử dụng. Người dùng sẽ mất quyền sử dụng khi họ đăng nhập lại.")) {
     try {
-      // 1. Lấy thông tin key trước để có usedBy
-      const licenseKeySnapshot = await database.ref('licenseKeys/' + key).once('value');
-      const keyData = licenseKeySnapshot.val();
-      
-      if (!keyData) {
-        alert("Không tìm thấy mã bản quyền: " + key);
-        return;
-      }
-
-      const userId = keyData.usedBy;
-
-      // 2. Cập nhật trong licenseKeys
+      // Chỉ cập nhật licenseKeys, không cập nhật users
       await database.ref('licenseKeys/' + key).update({
         used: false
       });
 
-      // 3. Nếu có userId, cập nhật trong users
-      if (userId) {
-        await database.ref('users/' + userId + '/license').update({
-          licensed: false
-        });
-        console.log("Đã cập nhật licensed: false cho user:", userId);
-      }
-
-      alert("Đã huỷ bản quyền cho mã: " + key + (userId ? " và vô hiệu hóa user: " + userId : ""));
+      alert("Đã huỷ bản quyền cho mã: " + key + "\n\nLưu ý: Người dùng cần đăng nhập lại để hệ thống cập nhật trạng thái.");
       loadKeys();
     } catch (error) {
       console.error("Lỗi khi huỷ bản quyền:", error);
@@ -149,7 +130,6 @@ async function revokeLicense(key) {
     }
   }
 }
-
 // Hiển thị key
 function loadKeys(){
   database.ref('licenseKeys').on('value', snap => {
