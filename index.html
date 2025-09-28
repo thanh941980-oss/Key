@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -19,7 +18,6 @@
     th {background:#f2f2f2;}
     .key-used {background:#d4edda;}
     .key-unused {background:#fff3cd;}
-    .key-revoked {background:#f8d7da;}
     .copy-btn {
       padding: 5px 10px;
       margin-left: 10px;
@@ -116,97 +114,42 @@ function copyKeyToClipboard(key) {
 }
 
 // Hàm huỷ bản quyền
-// Hàm huỷ bản quyền
-async function revokeLicense(key) {
-  if (confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nNgười dùng sẽ mất quyền sử dụng khi họ đăng nhập lại.")) {
-    try {
-      // CHỈ cập nhật licenseKeys, không động đến users
-      await database.ref('licenseKeys/' + key).update({
-        used: false,
-        usedAt: null,
-        usedBy: null,
-        usedByEmail: null,
-        revoked: true,
-        revokedAt: new Date().toISOString()
-      });
-
-      alert("✅ Đã huỷ bản quyền thành công cho mã: " + key + "\n\nLưu ý: Người dùng cần đăng nhập lại để hệ thống cập nhật trạng thái.");
+function revokeLicense(key) {
+  if(confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nMã này sẽ trở về trạng thái chưa sử dụng và có thể cấp lại cho người khác.")) {
+    database.ref('licenseKeys/'+key).update({
+      used: false
+      // Giữ nguyên các trường usedAt, usedBy, usedByEmail để theo dõi lịch sử
+    }).then(() => {
+      alert("Đã huỷ bản quyền cho mã: " + key);
       loadKeys();
-    } catch (error) {
+    }).catch(error => {
       console.error("Lỗi khi huỷ bản quyền:", error);
-      alert("❌ Đã xảy ra lỗi: " + error.message);
-    }
+      alert("Có lỗi xảy ra khi huỷ bản quyền");
+    });
   }
 }
 
-      // 3. Cập nhật trạng thái used: false cho key
-      await licenseRef.update({
-        used: false,
-        usedAt: null,
-        usedBy: null,
-        usedByEmail: null
-      });
-
-      alert("Đã huỷ bản quyền thành công cho mã: " + key);
-      loadKeys();
-    } catch (error) {
-      console.error("Lỗi khi huỷ bản quyền:", error);
-      alert("Đã xảy ra lỗi: " + error.message);
-    }
-  }
-}
-// Hiển thị key
 // Hiển thị key
 function loadKeys(){
-  console.log("loadKeys() được gọi");
-  
   database.ref('licenseKeys').on('value', snap => {
-    console.log("Nhận dữ liệu từ Firebase:", snap.exists());
-    
-    if(!snap.exists()){ 
-      console.log("Không có dữ liệu");
-      document.getElementById('keysTable').innerHTML = '<p>Chưa có mã nào.</p>'; 
-      return; 
-    }
-    
+    if(!snap.exists()){ document.getElementById('keysTable').innerHTML = '<p>Chưa có mã nào.</p>'; return; }
     const keys = snap.val();
-    console.log("Dữ liệu keys:", keys);
-    
     let html = `<table><thead><tr><th>Mã</th><th>Trạng thái</th><th>Ngày tạo</th><th>Ngày cấp</th><th>Người dùng</th><th>Email</th><th>Thao tác</th></tr></thead><tbody>`;
-    
-    Object.entries(keys).forEach(([k,v]) => {
-      console.log("Xử lý key:", k, v);
-      
-      // Xác định trạng thái
-      let status = '🔄 Chưa cấp';
-      let rowClass = 'key-unused';
-      
-      if (v.revoked) {
-        status = '❌ Đã huỷ';
-        rowClass = 'key-revoked';
-      } else if (v.used) {
-        status = '✅ Đã cấp';
-        rowClass = 'key-used';
-      }
-      
-      html += `<tr class="${rowClass}">
+    Object.entries(keys).forEach(([k,v])=>{
+      html += `<tr class="${v.used?'key-used':'key-unused'}">
         <td><code>${k}</code> <button class="copy-btn" data-key="${k}">Sao chép</button></td>
-        <td>${status}</td>
-        <td>${v.generatedAt ? new Date(v.generatedAt).toLocaleDateString('vi-VN') : '---'}</td>
-        <td>${v.usedAt ? new Date(v.usedAt).toLocaleDateString('vi-VN') : '---'}</td>
-        <td>${v.usedBy || '---'}</td>
-        <td>${v.usedByEmail || '---'}</td>
+        <td>${v.used?'✅ Đã cấp':'🔄 Chưa cấp'}</td>
+        <td>${v.generatedAt?new Date(v.generatedAt).toLocaleDateString('vi-VN'):'---'}</td>
+        <td>${v.usedAt?new Date(v.usedAt).toLocaleDateString('vi-VN'):'---'}</td>
+        <td>${v.usedBy||'---'}</td>
+        <td>${v.usedByEmail||'---'}</td>
         <td>
-          ${v.used && !v.revoked ? `<button class="revoke-btn" data-key="${k}">Huỷ bản quyền</button>` : '---'}
+          ${v.used ? `<button class="revoke-btn" data-key="${k}">Huỷ bản quyền</button>` : '---'}
         </td>
       </tr>`;
     });
-    
     html += `</tbody></table>`;
-    console.log("HTML generated:", html);
-    
     document.getElementById('keysTable').innerHTML = html;
-    console.log("Đã cập nhật bảng");
 
     // Thêm event listener cho các nút sao chép
     document.querySelectorAll('.copy-btn').forEach(button => {
@@ -223,9 +166,6 @@ function loadKeys(){
         revokeLicense(key);
       });
     });
-  }, error => {
-    console.error("Lỗi khi đọc dữ liệu:", error);
-    document.getElementById('keysTable').innerHTML = '<p style="color:red">Lỗi khi tải dữ liệu: ' + error.message + '</p>';
   });
 }
 
