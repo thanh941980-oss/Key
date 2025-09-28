@@ -115,11 +115,25 @@ function copyKeyToClipboard(key) {
 
 // Hàm huỷ bản quyền
 async function revokeLicense(key) {
-  if(confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nMã này sẽ trở về trạng thái chưa sử dụng. Người dùng sẽ mất quyền sử dụng khi họ đăng nhập lại.")) {
+  if (confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nMã này sẽ trở về trạng thái chưa sử dụng. Người dùng sẽ mất quyền sử dụng khi họ đăng nhập lại.")) {
     try {
-      // Chỉ cập nhật licenseKeys, không cập nhật users
-      await database.ref('licenseKeys/' + key).update({
-        used: false
+      const licenseRef = database.ref('licenseKeys/' + key);
+      const snapshot = await licenseRef.once('value');
+      const licenseData = snapshot.val();
+      
+      if (licenseData && licenseData.usedBy) {
+        // Cập nhật cả licensedKey và user
+        const userRef = database.ref('users/' + licenseData.usedBy);
+        await userRef.child('license').update({
+          licensed: false
+        });
+      }
+      
+      // Luôn cập nhật licenseKeys
+      await licenseRef.update({
+        used: false,
+        usedBy: null, // Xóa thông tin người dùng
+        usedByEmail: null // Xóa thông tin email
       });
 
       alert("Đã huỷ bản quyền cho mã: " + key + "\n\nLưu ý: Người dùng cần đăng nhập lại để hệ thống cập nhật trạng thái.");
