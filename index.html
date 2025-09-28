@@ -114,36 +114,64 @@ function copyKeyToClipboard(key) {
 }
 
 // Hàm huỷ bản quyền
-// Hàm huỷ bản quyền
+// Hàm huỷ bản quyền - Phiên bản sửa lỗi
 async function revokeLicense(key) {
   if (confirm("Bạn có chắc chắn muốn huỷ bản quyền cho mã: " + key + "?\n\nNgười dùng sẽ mất quyền sử dụng khi họ đăng nhập lại.")) {
     try {
-      // 1. Lấy thông tin của key để xác định người dùng
+      console.log("Bắt đầu huỷ bản quyền cho mã:", key);
+      
+      // 1. Lấy thông tin của key
       const licenseRef = database.ref('licenseKeys/' + key);
       const snapshot = await licenseRef.once('value');
       const licenseData = snapshot.val();
+      
+      console.log("Thông tin key:", licenseData);
 
       if (licenseData && licenseData.usedBy) {
-        // 2. Cập nhật trạng thái licensed: false cho người dùng tương ứng
-        const userRef = database.ref('users/' + licenseData.usedBy + '/license');
-        await userRef.update({
+        const userId = licenseData.usedBy;
+        console.log("User ID cần huỷ:", userId);
+        
+        // 2. Cập nhật trạng thái licensed: false cho người dùng
+        const userLicenseRef = database.ref('users/' + userId + '/license');
+        await userLicenseRef.update({
           licensed: false,
-          key: null, // Xóa key khỏi thông tin user
-          activatedAt: null // Xóa thời gian kích hoạt
+          key: null,
+          activatedAt: null
         });
+        console.log("Đã cập nhật licensed: false cho user");
         
-        // 3. Cập nhật stats nếu cần
-        const statsRef = database.ref('stats');
-        const statsSnapshot = await statsRef.once('value');
-        const currentStats = statsSnapshot.val() || {};
+        // 3. Cập nhật config/license nếu đây là user đang active
+        const configRef = database.ref('config/license');
+        const configSnapshot = await configRef.once('value');
+        const configData = configSnapshot.val();
         
-        // Giảm số lượng licensed users nếu có
-        if (currentStats.licensedUsersCount && currentStats.licensedUsersCount > 0) {
-          await statsRef.update({
-            licensedUsersCount: currentStats.licensedUsersCount - 1
+        if (configData && configData.key === key) {
+          await configRef.update({
+            licensed: false,
+            key: null
           });
+          console.log("Đã cập nhật config/license");
         }
       }
+
+      // 4. Cập nhật trạng thái key
+      await licenseRef.update({
+        used: false,
+        usedAt: null,
+        usedBy: null,
+        usedByEmail: null
+      });
+      console.log("Đã cập nhật key thành unused");
+
+      alert("✅ Đã huỷ bản quyền thành công cho mã: " + key);
+      loadKeys();
+      
+    } catch (error) {
+      console.error("Lỗi khi huỷ bản quyền:", error);
+      alert("❌ Đã xảy ra lỗi: " + error.message);
+    }
+  }
+}
 
       // 4. Cập nhật trạng thái used: false cho key
       await licenseRef.update({
